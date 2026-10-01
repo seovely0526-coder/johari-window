@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>나를 비추는 창 · 조하리의 창</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fb;color:#20242c;font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+main{max-width:760px;margin:auto;padding:20px 15px 60px}header{text-align:center;padding:22px 5px}h1{font-size:30px;margin:0 0 8px}.muted{color:#737987;line-height:1.6}
+.card{background:#fff;border:1px solid #e5e8ef;border-radius:22px;padding:20px;margin:14px 0;box-shadow:0 8px 28px rgba(20,30,60,.05)}
+input,textarea{width:100%;padding:12px 14px;border:1px solid #d9dde6;border-radius:13px;font:inherit;outline:none}textarea{min-height:110px;resize:vertical}
+button{border:0;border-radius:13px;padding:12px 16px;font-weight:800;cursor:pointer}.primary{background:#5968ed;color:white}.gray{background:#eef0f5;color:#333}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+label{display:block;font-weight:800;margin:14px 0 7px}.hidden{display:none!important}.badge{display:inline-block;background:#eef0ff;color:#4f5bd5;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800}
+.windows{display:grid;grid-template-columns:1fr 1fr;gap:10px}.win{padding:16px;border-radius:18px;min-height:160px}.open{background:#edf8f1}.blind{background:#fff5dc}.hiddenw{background:#f1edff}.unknown{background:#edf3ff}
+.win h3{margin:0 0 5px}.win p{font-size:13px;color:#707784;margin:0 0 12px}.chips{display:flex;flex-wrap:wrap;gap:7px}.chip{background:#fff;border:1px solid #dfe2e8;border-radius:999px;padding:7px 10px;font-size:13px}
+.choice{cursor:pointer}.choice.selected{outline:3px solid #6875ee}.message{border-bottom:1px solid #eceef2;padding:13px 0}.message:last-child{border:0}.meta{font-size:12px;color:#8a909b;margin-bottom:5px}.notice{background:#f7f8ff;border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.55;color:#606674}
+.link{font-size:12px}.empty{color:#8a909a;font-size:13px}.count{font-size:28px;font-weight:900}.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#222;color:#fff;border-radius:999px;padding:11px 16px;display:none}
+@media(max-width:600px){.windows{grid-template-columns:1fr}.row{flex-direction:column}}
+</style>
+</head>
+<body><main>
+<header><h1>🔎 나를 비추는 창</h1><p class="muted">내가 보는 나와 타인이 보는 나를 비교해<br>조하리의 창으로 자기이해를 탐색해 보세요.</p></header>
+
+<section id="start" class="card">
+<h2>나의 창 만들기</h2><p class="muted">이름은 별명으로도 충분합니다. 만든 뒤 친구에게 링크를 보내세요.</p>
+<label>이름 또는 별명</label><input id="owner" maxlength="20" placeholder="예: 서은">
+<br><br><button class="primary" onclick="createRoom()">나의 창 만들기</button>
+</section>
+
+<section id="ownerPage" class="hidden">
+<div class="card"><span class="badge">내 결과</span><h2 id="title"></h2>
+<p class="muted">친구가 아래 응답 링크로 들어와 특성과 메시지를 남기면 이 화면에 누적됩니다.</p>
+<div class="row"><input id="ownerLink" readonly><button class="gray" onclick="copyOwnerLink()">링크 복사</button></div>
+<div class="notice" style="margin-top:12px">친구에게 보내는 링크에는 개인정보가 들어 있지 않습니다. 별명 사용을 권장합니다.</div>
+</div>
+
+<div class="card"><h2>① 내가 보는 나</h2><p class="muted">나를 잘 설명한다고 생각하는 특성을 3~5개 골라 저장하세요.</p><div id="selfChoices" class="chips"></div><br><button class="primary" onclick="saveSelf()">저장</button></div>
+
+<div class="card"><h2>② 조하리의 창</h2><div class="windows">
+<div class="win open"><h3>🟢 열린 창</h3><p>나도 알고, 타인도 발견한 특성</p><div id="open"></div></div>
+<div class="win blind"><h3>🟡 맹목의 창</h3><p>타인은 발견했지만 내가 선택하지 않은 특성</p><div id="blind"></div></div>
+<div class="win hiddenw"><h3>🟣 숨겨진 창</h3><p>내가 선택했지만 아직 타인에게서 나오지 않은 특성</p><div id="hidden"></div></div>
+<div class="win unknown"><h3>🔵 미지의 창</h3><p>아직 발견되지 않은 나의 가능성</p><div class="empty">새로운 경험과 관계를 통해 계속 발견할 수 있어요.</div></div>
+</div></div>
+
+<div class="card"><h2>③ 받은 피드백 <span id="cnt" class="count">0</span></h2><div id="messages"></div></div>
+<div class="card"><h2>④ 탐구 성찰</h2><div id="reflection" class="notice"></div></div>
+</section>
+
+<section id="friendPage" class="hidden card">
+<span class="badge">친구 피드백</span><h2 id="friendTitle"></h2>
+<p class="muted">상대방의 외모나 민감한 내용을 평가하기보다 성격·소통·협력·태도 등을 중심으로 존중하는 피드백을 남겨주세요.</p>
+<label>이 사람에게 어울린다고 생각하는 특성</label><div id="friendChoices" class="chips"></div>
+<label>한마디 피드백</label><textarea id="feedback" maxlength="300" placeholder="예: 다른 사람의 이야기를 끝까지 들어주는 모습이 인상적이야."></textarea>
+<label>내 이름 또는 별명 (선택)</label><input id="friendName" maxlength="20" placeholder="비워 두면 익명">
+<br><br><button class="primary" onclick="sendFeedback()">피드백 보내기</button>
+</section>
+
+<section id="done" class="hidden card" style="text-align:center"><div style="font-size:48px">✨</div><h2>피드백이 전달됐어요!</h2><p class="muted">작은 피드백이 새로운 자기이해의 창이 될 수 있어요.</p></section>
+</main><div id="toast" class="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+
+/*
+  1) Firebase Console에서 Web App을 만든 뒤 아래 값을 입력하세요.
+  2) 이 파일을 GitHub Pages / Firebase Hosting 등에 올리면 여러 휴대폰에서 실시간으로 사용됩니다.
+*/
+const firebaseConfig = {
+  apiKey: "AIzaSyCOz7ZQuZFiWFSVi1CpshlisX8mPwxge0M",
+  authDomain: "johari-window-793d6.firebaseapp.com",
+  projectId: "johari-window-793d6",
+  storageBucket: "johari-window-793d6.firebasestorage.app",
+  messagingSenderId: "1048946872988",
+  appId: "1:1048946872988:web:e7a5d5e310badc3db21359",
+  measurementId: "G-VS2EKLEVTW"
+};
+
+const configured = !Object.values(firebaseConfig).some(v=>String(v).startsWith("여기에_"));
+let db=null;
+if(configured){const app=initializeApp(firebaseConfig);db=getFirestore(app);}
+
+const TRAITS=["경청하는","책임감 있는","배려하는","성실한","침착한","창의적인","협력적인","유머 감각이 있는","도전적인","공감하는","리더십이 있는","꼼꼼한","긍정적인","솔직한","인내심 있는","문제 해결을 잘하는"];
+const $=id=>document.getElementById(id);
+const qs=new URLSearchParams(location.search);
+
+function toast(t){$("toast").textContent=t;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",1800)}
+function selected(id){return [...document.querySelectorAll("#"+id+" .choice.selected")].map(x=>x.textContent)}
+function choices(id,vals=[]){
+  $(id).innerHTML="";
+  TRAITS.forEach(t=>{const b=document.createElement("button");b.className="chip choice"+(vals.includes(t)?" selected":"");b.textContent=t;b.onclick=()=>b.classList.toggle("selected");$(id).appendChild(b)})
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+
+async function createRoom(){
+  if(!configured){alert("먼저 이 파일의 firebaseConfig에 Firebase 프로젝트 값을 입력해야 합니다. 같은 폴더의 SETUP.md를 따라주세요.");return}
+  const owner=$("owner").value.trim();if(!owner){alert("이름 또는 별명을 입력해 주세요.");return}
+  const room=Math.random().toString(36).slice(2,10);
+  await setDoc(doc(db,"rooms",room),{owner,self:[],createdAt:Date.now()});
+  location.href=location.pathname+"?room="+room;
+}
+async function ownerPage(room){
+  const snap=await getDoc(doc(db,"rooms",room));if(!snap.exists()){alert("존재하지 않는 방입니다.");return}
+  $("start").classList.add("hidden");$("ownerPage").classList.remove("hidden");
+  const data=snap.data();$("title").textContent=data.owner+"님의 조하리의 창";
+  $("ownerLink").value=location.origin+location.pathname+"?respond="+room;
+  choices("selfChoices",data.self||[]);
+  onSnapshot(doc(db,"rooms",room),s=>{if(s.exists())render(s.data())});
+}
+async function saveSelf(){
+  const room=qs.get("room"),vals=selected("selfChoices");
+  await updateDoc(doc(db,"rooms",room),{self:vals});toast("내가 보는 나를 저장했어요.");
+}
+function render(data){
+  const self=data.self||[],fb=data.feedback||[],freq={};
+  fb.forEach(x=>(x.traits||[]).forEach(t=>freq[t]=(freq[t]||0)+1));
+  const other=Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
+  const open=self.filter(t=>freq[t]),blind=other.filter(t=>!self.includes(t)),hidden=self.filter(t=>!freq[t]);
+  $("open").innerHTML=open.length?open.map(t=>`<span class="chip">${esc(t)}</span>`).join(""):"<span class=empty>아직 없어요.</span>";
+  $("blind").innerHTML=blind.length?blind.map(t=>`<span class="chip">${esc(t)}</span>`).join(""):"<span class=empty>아직 발견되지 않았어요.</span>";
+  $("hidden").innerHTML=hidden.length?hidden.map(t=>`<span class="chip">${esc(t)}</span>`).join(""):"<span class=empty>아직 없어요.</span>";
+  $("cnt").textContent=fb.length;
+  $("messages").innerHTML=fb.length?[...fb].reverse().map(x=>`<div class=message><div class=meta>${esc(x.name||"익명")}</div><div class=chips>${(x.traits||[]).map(t=>`<span class=chip>${esc(t)}</span>`).join("")}</div><div style="margin-top:7px;line-height:1.55">${esc(x.message||"")}</div></div>`).join(""):"<div class=empty>아직 피드백이 없어요.</div>";
+  $("reflection").textContent=blind.length?`친구들의 응답에서 내가 선택하지 않았던 특성이 ${blind.length}개 발견되었습니다. 이것은 타인의 관점이 자기이해를 넓히는 단서가 될 수 있음을 보여줍니다. 다만 피드백은 하나의 관점이므로 그대로 ‘진짜 나’라고 단정하기보다 여러 사람의 의견과 자신의 경험을 함께 비교하는 것이 중요합니다.`:"친구의 피드백이 쌓이면 내가 몰랐던 특성이 맹목의 창에 나타납니다.";
+}
+async function friendPage(room){
+  const snap=await getDoc(doc(db,"rooms",room));if(!snap.exists()){alert("존재하지 않는 방입니다.");return}
+  $("start").classList.add("hidden");$("friendPage").classList.remove("hidden");$("friendTitle").textContent=snap.data().owner+"님에게 피드백 남기기";choices("friendChoices");
+}
+async function sendFeedback(){
+  const room=qs.get("respond"),traits=selected("friendChoices"),message=$("feedback").value.trim(),name=$("friendName").value.trim();
+  if(!traits.length&&!message){alert("특성을 하나 이상 선택하거나 메시지를 작성해 주세요.");return}
+  await addDoc(collection(db,"rooms",room,"feedback"),{traits,message,name:name||"익명",time:Date.now()});
+  const ref=doc(db,"rooms",room),snap=await getDoc(ref),old=snap.data().feedback||[];
+  await updateDoc(ref,{feedback:[...old,{traits,message,name:name||"익명",time:Date.now()}]});
+  $("friendPage").classList.add("hidden");$("done").classList.remove("hidden");
+}
+window.createRoom=createRoom;window.saveSelf=saveSelf;window.sendFeedback=sendFeedback;
+window.copyOwnerLink=()=>navigator.clipboard.writeText($("ownerLink").value).then(()=>toast("링크를 복사했어요."));
+if(qs.get("room")) ownerPage(qs.get("room")); else if(qs.get("respond")) friendPage(qs.get("respond"));
+</script>
+</body></html>
