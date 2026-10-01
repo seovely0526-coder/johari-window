@@ -59,14 +59,9 @@ label{display:block;font-weight:800;margin:14px 0 7px}.hidden{display:none!impor
 <section id="done" class="hidden card" style="text-align:center"><div style="font-size:48px">✨</div><h2>피드백이 전달됐어요!</h2><p class="muted">작은 피드백이 새로운 자기이해의 창이 될 수 있어요.</p></section>
 </main><div id="toast" class="toast"></div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, addDoc, collection, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
-
-/*
-  1) Firebase Console에서 Web App을 만든 뒤 아래 값을 입력하세요.
-  2) 이 파일을 GitHub Pages / Firebase Hosting 등에 올리면 여러 휴대폰에서 실시간으로 사용됩니다.
-*/
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyCOz7ZQuZFiWFSVi1CpshlisX8mPwxge0M",
   authDomain: "johari-window-793d6.firebaseapp.com",
@@ -76,15 +71,12 @@ const firebaseConfig = {
   appId: "1:1048946872988:web:e7a5d5e310badc3db21359",
   measurementId: "G-VS2EKLEVTW"
 };
-
-const configured = !Object.values(firebaseConfig).some(v=>String(v).startsWith("여기에_"));
-let db=null;
-if(configured){const app=initializeApp(firebaseConfig);db=getFirestore(app);}
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 const TRAITS=["경청하는","책임감 있는","배려하는","성실한","침착한","창의적인","협력적인","유머 감각이 있는","도전적인","공감하는","리더십이 있는","꼼꼼한","긍정적인","솔직한","인내심 있는","문제 해결을 잘하는"];
 const $=id=>document.getElementById(id);
 const qs=new URLSearchParams(location.search);
-
 function toast(t){$("toast").textContent=t;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",1800)}
 function selected(id){return [...document.querySelectorAll("#"+id+" .choice.selected")].map(x=>x.textContent)}
 function choices(id,vals=[]){
@@ -94,23 +86,30 @@ function choices(id,vals=[]){
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 
 async function createRoom(){
-  if(!configured){alert("먼저 이 파일의 firebaseConfig에 Firebase 프로젝트 값을 입력해야 합니다. 같은 폴더의 SETUP.md를 따라주세요.");return}
-  const owner=$("owner").value.trim();if(!owner){alert("이름 또는 별명을 입력해 주세요.");return}
-  const room=Math.random().toString(36).slice(2,10);
-  await setDoc(doc(db,"rooms",room),{owner,self:[],createdAt:Date.now()});
-  location.href=location.pathname+"?room="+room;
+  try{
+    const owner=$("owner").value.trim();
+    if(!owner){alert("이름 또는 별명을 입력해 주세요.");return}
+    const room=Math.random().toString(36).slice(2,10);
+    await db.collection("rooms").doc(room).set({owner,self:[],createdAt:Date.now(),feedback:[]});
+    location.href=location.pathname+"?room="+room;
+  }catch(e){console.error(e);alert("창을 만들지 못했어요. Firebase 설정이나 Firestore 규칙을 확인해 주세요.");}
 }
 async function ownerPage(room){
-  const snap=await getDoc(doc(db,"rooms",room));if(!snap.exists()){alert("존재하지 않는 방입니다.");return}
-  $("start").classList.add("hidden");$("ownerPage").classList.remove("hidden");
-  const data=snap.data();$("title").textContent=data.owner+"님의 조하리의 창";
-  $("ownerLink").value=location.origin+location.pathname+"?respond="+room;
-  choices("selfChoices",data.self||[]);
-  onSnapshot(doc(db,"rooms",room),s=>{if(s.exists())render(s.data())});
+  try{
+    const snap=await db.collection("rooms").doc(room).get();
+    if(!snap.exists){alert("존재하지 않는 방입니다.");return}
+    $("start").classList.add("hidden");$("ownerPage").classList.remove("hidden");
+    const data=snap.data();$("title").textContent=data.owner+"님의 조하리의 창";
+    $("ownerLink").value=location.origin+location.pathname+"?respond="+room;
+    choices("selfChoices",data.self||[]);
+    db.collection("rooms").doc(room).onSnapshot(s=>{if(s.exists)render(s.data())});
+  }catch(e){console.error(e);alert("방을 불러오지 못했어요. Firebase 연결을 확인해 주세요.");}
 }
 async function saveSelf(){
-  const room=qs.get("room"),vals=selected("selfChoices");
-  await updateDoc(doc(db,"rooms",room),{self:vals});toast("내가 보는 나를 저장했어요.");
+  try{
+    const room=qs.get("room"),vals=selected("selfChoices");
+    await db.collection("rooms").doc(room).update({self:vals});toast("내가 보는 나를 저장했어요.");
+  }catch(e){console.error(e);alert("저장하지 못했어요. Firestore 규칙을 확인해 주세요.");}
 }
 function render(data){
   const self=data.self||[],fb=data.feedback||[],freq={};
@@ -125,16 +124,20 @@ function render(data){
   $("reflection").textContent=blind.length?`친구들의 응답에서 내가 선택하지 않았던 특성이 ${blind.length}개 발견되었습니다. 이것은 타인의 관점이 자기이해를 넓히는 단서가 될 수 있음을 보여줍니다. 다만 피드백은 하나의 관점이므로 그대로 ‘진짜 나’라고 단정하기보다 여러 사람의 의견과 자신의 경험을 함께 비교하는 것이 중요합니다.`:"친구의 피드백이 쌓이면 내가 몰랐던 특성이 맹목의 창에 나타납니다.";
 }
 async function friendPage(room){
-  const snap=await getDoc(doc(db,"rooms",room));if(!snap.exists()){alert("존재하지 않는 방입니다.");return}
-  $("start").classList.add("hidden");$("friendPage").classList.remove("hidden");$("friendTitle").textContent=snap.data().owner+"님에게 피드백 남기기";choices("friendChoices");
+  try{
+    const snap=await db.collection("rooms").doc(room).get();
+    if(!snap.exists){alert("존재하지 않는 방입니다.");return}
+    $("start").classList.add("hidden");$("friendPage").classList.remove("hidden");$("friendTitle").textContent=snap.data().owner+"님에게 피드백 남기기";choices("friendChoices");
+  }catch(e){console.error(e);alert("방을 불러오지 못했어요. 링크나 Firebase 설정을 확인해 주세요.");}
 }
 async function sendFeedback(){
-  const room=qs.get("respond"),traits=selected("friendChoices"),message=$("feedback").value.trim(),name=$("friendName").value.trim();
-  if(!traits.length&&!message){alert("특성을 하나 이상 선택하거나 메시지를 작성해 주세요.");return}
-  await addDoc(collection(db,"rooms",room,"feedback"),{traits,message,name:name||"익명",time:Date.now()});
-  const ref=doc(db,"rooms",room),snap=await getDoc(ref),old=snap.data().feedback||[];
-  await updateDoc(ref,{feedback:[...old,{traits,message,name:name||"익명",time:Date.now()}]});
-  $("friendPage").classList.add("hidden");$("done").classList.remove("hidden");
+  try{
+    const room=qs.get("respond"),traits=selected("friendChoices"),message=$("feedback").value.trim(),name=$("friendName").value.trim();
+    if(!traits.length&&!message){alert("특성을 하나 이상 선택하거나 메시지를 작성해 주세요.");return}
+    const ref=db.collection("rooms").doc(room),snap=await ref.get(),old=snap.data().feedback||[];
+    await ref.update({feedback:[...old,{traits,message,name:name||"익명",time:Date.now()}]});
+    $("friendPage").classList.add("hidden");$("done").classList.remove("hidden");
+  }catch(e){console.error(e);alert("피드백을 보내지 못했어요. Firestore 규칙을 확인해 주세요.");}
 }
 window.createRoom=createRoom;window.saveSelf=saveSelf;window.sendFeedback=sendFeedback;
 window.copyOwnerLink=()=>navigator.clipboard.writeText($("ownerLink").value).then(()=>toast("링크를 복사했어요."));
