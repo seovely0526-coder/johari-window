@@ -1,146 +1,134 @@
-<!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>나를 비추는 창 · 조하리의 창</title>
+from pathlib import Path
+import zipfile
+
+base = Path("/mnt/data/johari_new_version")
+base.mkdir(exist_ok=True)
+
+html = """<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>나를 비추는 창</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f5f7fb;color:#20242c;font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
-main{max-width:760px;margin:auto;padding:20px 15px 60px}header{text-align:center;padding:22px 5px}h1{font-size:30px;margin:0 0 8px}.muted{color:#737987;line-height:1.6}
-.card{background:#fff;border:1px solid #e5e8ef;border-radius:22px;padding:20px;margin:14px 0;box-shadow:0 8px 28px rgba(20,30,60,.05)}
-input,textarea{width:100%;padding:12px 14px;border:1px solid #d9dde6;border-radius:13px;font:inherit;outline:none}textarea{min-height:110px;resize:vertical}
-button{border:0;border-radius:13px;padding:12px 16px;font-weight:800;cursor:pointer}.primary{background:#5968ed;color:white}.gray{background:#eef0f5;color:#333}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
-label{display:block;font-weight:800;margin:14px 0 7px}.hidden{display:none!important}.badge{display:inline-block;background:#eef0ff;color:#4f5bd5;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:800}
-.windows{display:grid;grid-template-columns:1fr 1fr;gap:10px}.win{padding:16px;border-radius:18px;min-height:160px}.open{background:#edf8f1}.blind{background:#fff5dc}.hiddenw{background:#f1edff}.unknown{background:#edf3ff}
-.win h3{margin:0 0 5px}.win p{font-size:13px;color:#707784;margin:0 0 12px}.chips{display:flex;flex-wrap:wrap;gap:7px}.chip{background:#fff;border:1px solid #dfe2e8;border-radius:999px;padding:7px 10px;font-size:13px}
-.choice{cursor:pointer}.choice.selected{outline:3px solid #6875ee}.message{border-bottom:1px solid #eceef2;padding:13px 0}.message:last-child{border:0}.meta{font-size:12px;color:#8a909b;margin-bottom:5px}.notice{background:#f7f8ff;border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.55;color:#606674}
-.link{font-size:12px}.empty{color:#8a909a;font-size:13px}.count{font-size:28px;font-weight:900}.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#222;color:#fff;border-radius:999px;padding:11px 16px;display:none}
-@media(max-width:600px){.windows{grid-template-columns:1fr}.row{flex-direction:column}}
-</style>
-</head>
-<body><main>
-<header><h1>🔎 나를 비추는 창</h1><p class="muted">내가 보는 나와 타인이 보는 나를 비교해<br>조하리의 창으로 자기이해를 탐색해 보세요.</p></header>
-
-<section id="start" class="card">
-<h2>나의 창 만들기</h2><p class="muted">이름은 별명으로도 충분합니다. 만든 뒤 친구에게 링크를 보내세요.</p>
-<label>이름 또는 별명</label><input id="owner" maxlength="20" placeholder="예: 서은">
-<br><br><button class="primary" onclick="createRoom()">나의 창 만들기</button>
-</section>
-
-<section id="ownerPage" class="hidden">
-<div class="card"><span class="badge">내 결과</span><h2 id="title"></h2>
-<p class="muted">친구가 아래 응답 링크로 들어와 특성과 메시지를 남기면 이 화면에 누적됩니다.</p>
-<div class="row"><input id="ownerLink" readonly><button class="gray" onclick="copyOwnerLink()">링크 복사</button></div>
-<div class="notice" style="margin-top:12px">친구에게 보내는 링크에는 개인정보가 들어 있지 않습니다. 별명 사용을 권장합니다.</div>
-</div>
-
-<div class="card"><h2>① 내가 보는 나</h2><p class="muted">나를 잘 설명한다고 생각하는 특성을 3~5개 골라 저장하세요.</p><div id="selfChoices" class="chips"></div><br><button class="primary" onclick="saveSelf()">저장</button></div>
-
-<div class="card"><h2>② 조하리의 창</h2><div class="windows">
-<div class="win open"><h3>🟢 열린 창</h3><p>나도 알고, 타인도 발견한 특성</p><div id="open"></div></div>
-<div class="win blind"><h3>🟡 맹목의 창</h3><p>타인은 발견했지만 내가 선택하지 않은 특성</p><div id="blind"></div></div>
-<div class="win hiddenw"><h3>🟣 숨겨진 창</h3><p>내가 선택했지만 아직 타인에게서 나오지 않은 특성</p><div id="hidden"></div></div>
-<div class="win unknown"><h3>🔵 미지의 창</h3><p>아직 발견되지 않은 나의 가능성</p><div class="empty">새로운 경험과 관계를 통해 계속 발견할 수 있어요.</div></div>
-</div></div>
-
-<div class="card"><h2>③ 받은 피드백 <span id="cnt" class="count">0</span></h2><div id="messages"></div></div>
-<div class="card"><h2>④ 탐구 성찰</h2><div id="reflection" class="notice"></div></div>
-</section>
-
-<section id="friendPage" class="hidden card">
-<span class="badge">친구 피드백</span><h2 id="friendTitle"></h2>
-<p class="muted">상대방의 외모나 민감한 내용을 평가하기보다 성격·소통·협력·태도 등을 중심으로 존중하는 피드백을 남겨주세요.</p>
-<label>이 사람에게 어울린다고 생각하는 특성</label><div id="friendChoices" class="chips"></div>
-<label>한마디 피드백</label><textarea id="feedback" maxlength="300" placeholder="예: 다른 사람의 이야기를 끝까지 들어주는 모습이 인상적이야."></textarea>
-<label>내 이름 또는 별명 (선택)</label><input id="friendName" maxlength="20" placeholder="비워 두면 익명">
-<br><br><button class="primary" onclick="sendFeedback()">피드백 보내기</button>
-</section>
-
-<section id="done" class="hidden card" style="text-align:center"><div style="font-size:48px">✨</div><h2>피드백이 전달됐어요!</h2><p class="muted">작은 피드백이 새로운 자기이해의 창이 될 수 있어요.</p></section>
-</main><div id="toast" class="toast"></div>
-
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fb;color:#20242c;font-family:system-ui,sans-serif}main{max-width:820px;margin:auto;padding:16px 14px 55px}header{text-align:center;padding:22px 5px}h1{font-size:30px}h2{font-size:21px}.muted{color:#687080;line-height:1.6}.card{background:#fff;border:1px solid #e4e7ee;border-radius:18px;padding:17px;margin:13px 0;box-shadow:0 5px 20px #17213a08}input,textarea{width:100%;padding:12px;border:1px solid #d5dae4;border-radius:12px;font:inherit}textarea{min-height:90px}label{display:block;font-weight:700;margin:12px 0 6px}button{border:0;border-radius:12px;padding:12px 15px;font:inherit;font-weight:750;cursor:pointer}.primary{background:#5665e8;color:#fff}.secondary{background:#eef0f6;color:#303644}.danger{background:#b42318;color:#fff}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}.hidden{display:none!important}.notice{background:#f5f6ff;border-radius:12px;padding:12px;font-size:13px;line-height:1.5}.chips{display:flex;flex-wrap:wrap;gap:7px}.chip{background:#fff;border:1px solid #dfe2e8;border-radius:999px;padding:8px 10px;font-size:13px}.choice.selected{outline:3px solid #6976ee;background:#f0f2ff}.windows,.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.win{padding:13px;border-radius:15px;min-height:120px}.open{background:#edf8f1}.blind{background:#fff5dc}.hiddenw{background:#f1edff}.unknown{background:#edf3ff}.win p,.small{font-size:12px;color:#687080}.message{padding:12px 0;border-bottom:1px solid #eee}.bar{height:9px;background:#edf0f5;border-radius:99px;overflow:hidden}.bar span{display:block;height:100%;background:#5665e8}.stat{border:1px solid #e4e7ee;padding:12px;border-radius:12px}.stat strong{font-size:24px}.toast{display:none;position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:11px 15px;border-radius:20px;z-index:5}@media(max-width:600px){.windows,.stats{grid-template-columns:1fr}.row{flex-direction:column}}
+</style></head><body><main>
+<header><h1>🔎 나를 비추는 창</h1><p class="muted">내가 보는 나와 타인이 보는 나를 비교하며<br>자기이해와 대인관계를 탐색해 보세요.</p></header>
+<section id="home" class="card"><h2>활동 선택</h2><p class="muted">조하리의 창 활동 또는 활동 후 익명 설문을 선택하세요.</p><div class="row"><button class="primary" onclick="show('create')">나의 창 만들기</button><button class="secondary" onclick="show('survey')">익명 설문</button><button class="secondary" onclick="show('admin')">관리자</button></div><div class="notice">별명을 사용하고 민감한 개인정보는 입력하지 마세요.</div></section>
+<section id="create" class="card hidden"><h2>나의 창 만들기</h2><label>이름 또는 별명</label><input id="owner" maxlength="20" placeholder="예: 햇살"><br><br><button class="primary" onclick="createRoom()">창 만들기</button><button class="secondary" onclick="show('home')">돌아가기</button></section>
+<section id="ownerPage" class="hidden"><div class="card"><span>내 결과</span><h2 id="title"></h2><div class="row"><input id="ownerLink" readonly><button class="secondary" onclick="copyLink()">링크 복사</button></div><p class="notice">친구에게 응답 링크를 보내세요. 별명 사용을 권장합니다.</p></div><div class="card"><h2>① 내가 보는 나</h2><p class="muted">3~5개 선택하세요.</p><div id="selfChoices" class="chips"></div><br><button class="primary" onclick="saveSelf()">저장</button></div><div class="card"><h2>② 조하리의 창</h2><div class="windows"><div class="win open"><h3>🟢 열린 창</h3><p>나도 알고 타인도 선택</p><div id="open"></div></div><div class="win blind"><h3>🟡 맹목의 창</h3><p>타인만 선택</p><div id="blind"></div></div><div class="win hiddenw"><h3>🟣 숨겨진 창</h3><p>나만 선택</p><div id="hidden"></div></div><div class="win unknown"><h3>🔵 미지의 창</h3><p>새 경험을 통해 발견할 가능성</p></div></div></div><div class="card"><h2>③ 받은 피드백 (<span id="cnt">0</span>)</h2><div id="messages"></div></div><div class="card"><h2>④ 탐구 성찰</h2><div id="reflection" class="notice"></div></div><button class="secondary" onclick="show('home')">홈</button></section>
+<section id="friendPage" class="card hidden"><h2 id="friendTitle">친구 피드백</h2><p class="muted">상대방을 존중하며 성격·소통·협력 등을 중심으로 답하세요.</p><label>어울리는 특성</label><div id="friendChoices" class="chips"></div><label>한마디 피드백 (선택)</label><textarea id="feedback" maxlength="300"></textarea><label>이름 또는 별명 (선택)</label><input id="friendName" maxlength="20" placeholder="비워 두면 익명"><br><br><button class="primary" onclick="sendFeedback()">보내기</button></section>
+<section id="done" class="card hidden"><h2>피드백이 전달됐어요.</h2><button class="secondary" onclick="show('home')">홈</button></section>
+<section id="survey" class="card hidden"><h2>활동 후 익명 설문</h2><p class="muted">각 문항에서 하나를 선택하세요.</p><div id="questions"></div><button class="primary" onclick="submitSurvey()">제출</button><button class="secondary" onclick="show('home')">돌아가기</button></section>
+<section id="admin" class="card hidden"><h2>관리자 대시보드</h2><div id="login"><label>관리자 이메일</label><input id="email" type="email"><label>비밀번호</label><input id="password" type="password"><br><br><button class="primary" onclick="adminLogin()">로그인</button></div><div id="panel" class="hidden"><p class="notice">로그인: <b id="who"></b><br>실제 응답은 보존되며 테스트 응답만 초기화할 수 있습니다.</p><div class="stats"><div class="stat">실제 응답<strong id="realCount">0</strong></div><div class="stat">테스트 응답<strong id="testCount">0</strong></div></div><div id="stats"></div><div class="card"><h3>테스트 응답 추가</h3><select id="amount"><option value="1">1개</option><option value="3">3개</option><option value="5">5개</option></select><br><br><button class="secondary" onclick="addTests()">추가</button></div><div class="card"><h3>테스트 응답 초기화</h3><p>isTest=true인 테스트 설문 문서만 삭제합니다.</p><button class="danger" onclick="resetTests()">테스트 응답만 초기화</button></div><button class="secondary" onclick="logout()">로그아웃</button></div><button class="secondary" onclick="show('home')">홈</button></section>
+<p class="small" style="text-align:center">나를 비추는 창 · 교육 활동용</p></main><div id="toast" class="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyCOz7ZQuZFiWFSVi1CpshlisX8mPwxge0M",
-  authDomain: "johari-window-793d6.firebaseapp.com",
-  projectId: "johari-window-793d6",
-  storageBucket: "johari-window-793d6.firebasestorage.app",
-  messagingSenderId: "1048946872988",
-  appId: "1:1048946872988:web:e7a5d5e310badc3db21359",
-  measurementId: "G-VS2EKLEVTW"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
+const firebaseConfig={apiKey:"AIzaSyCOz7ZQuZFiWFSVi1CpshlisX8mPwxge0M",authDomain:"johari-window-793d6.firebaseapp.com",projectId:"johari-window-793d6",storageBucket:"johari-window-793d6.firebasestorage.app",messagingSenderId:"1048946872988",appId:"1:1048946872988:web:e7a5d5e310badc3db21359",measurementId:"G-VS2EKLEVTW"};
+const ADMIN_EMAIL="admin@example.com"; // 실제 관리자 이메일로 변경하고 firestore.rules와 일치시킬 것
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.firestore(),$=id=>document.getElementById(id),qs=new URLSearchParams(location.search);
 const TRAITS=["경청하는","책임감 있는","배려하는","성실한","침착한","창의적인","협력적인","유머 감각이 있는","도전적인","공감하는","리더십이 있는","꼼꼼한","긍정적인","솔직한","인내심 있는","문제 해결을 잘하는"];
-const $=id=>document.getElementById(id);
-const qs=new URLSearchParams(location.search);
-function toast(t){$("toast").textContent=t;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",1800)}
-function selected(id){return [...document.querySelectorAll("#"+id+" .choice.selected")].map(x=>x.textContent)}
-function choices(id,vals=[]){
-  $(id).innerHTML="";
-  TRAITS.forEach(t=>{const b=document.createElement("button");b.className="chip choice"+(vals.includes(t)?" selected":"");b.textContent=t;b.onclick=()=>b.classList.toggle("selected");$(id).appendChild(b)})
-}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+const Q=[["selfAwareness","타인의 피드백이 나를 이해하는 데 도움이 되었나요?"],["feedbackComfort","친구의 피드백을 받는 것이 편안했나요?"],["otherUnderstanding","다른 사람의 관점을 이해하는 데 도움이 되었나요?"],["relationship","자기이해와 타인이해가 대인관계에 도움이 된다고 생각하나요?"],["futureUse","앞으로도 존중하는 피드백을 활용하고 싶나요?"]],S=["전혀 그렇지 않다","그렇지 않은 편이다","보통이다","그런 편이다","매우 그렇다"];
+function show(id){["home","create","ownerPage","friendPage","done","survey","admin"].forEach(x=>$(x).classList.add("hidden"));$(id).classList.remove("hidden");window.scrollTo(0,0)}
+function toast(t){$("toast").textContent=t;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",2200)}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]))}
+function selected(id){return [...document.querySelectorAll("#"+id+" .choice.selected")].map(b=>b.dataset.v)}
+function choices(id,vals=[]){$(id).innerHTML="";TRAITS.forEach(t=>{let b=document.createElement("button");b.className="chip choice"+(vals.includes(t)?" selected":"");b.dataset.v=t;b.textContent=t;b.onclick=()=>b.classList.toggle("selected");$(id).appendChild(b)})}
+$("questions").innerHTML=Q.map(q=>`<div class="card"><b>${q[1]}</b>${S.map((s,i)=>`<label style="font-weight:500"><input type="radio" style="width:auto" name="${q[0]}" value="${i+1}"> ${s}</label>`).join("")}</div>`).join("");
+function admin(){return auth.currentUser&&auth.currentUser.email.toLowerCase()===ADMIN_EMAIL.toLowerCase()}
+async function createRoom(){try{let owner=$("owner").value.trim();if(!owner)return alert("별명을 입력해 주세요.");let id=Math.random().toString(36).slice(2,10);await db.collection("rooms").doc(id).set({owner,self:[],createdAt:Date.now(),feedback:[]});location.href=location.pathname+"?room="+id}catch(e){console.error(e);alert("방을 만들지 못했습니다. Firebase 규칙을 확인하세요.")}}
+async function ownerPage(id){try{let ref=db.collection("rooms").doc(id),s=await ref.get();if(!s.exists)return alert("방이 없습니다.");show("ownerPage");$("title").textContent=s.data().owner+"님의 조하리의 창";$("ownerLink").value=location.origin+location.pathname+"?respond="+id;choices("selfChoices",s.data().self||[]);ref.onSnapshot(x=>x.exists&&render(x.data()))}catch(e){alert("방을 불러오지 못했습니다. Firestore 규칙을 확인하세요.")}}
+async function saveSelf(){let v=selected("selfChoices");if(v.length<3||v.length>5)return alert("특성을 3~5개 선택하세요.");try{await db.collection("rooms").doc(qs.get("room")).update({self:v});toast("저장했습니다.")}catch(e){alert("저장하지 못했습니다.")}}
+function render(d){let self=d.self||[],fb=d.feedback||[],freq={};fb.forEach(x=>(x.traits||[]).forEach(t=>freq[t]=(freq[t]||0)+1));let other=Object.keys(freq),op=self.filter(t=>freq[t]),bl=other.filter(t=>!self.includes(t)),hi=self.filter(t=>!freq[t]);$("open").innerHTML=op.map(t=>`<span class="chip">${esc(t)}</span>`).join("")||"아직 없어요";$("blind").innerHTML=bl.map(t=>`<span class="chip">${esc(t)}</span>`).join("")||"아직 없어요";$("hidden").innerHTML=hi.map(t=>`<span class="chip">${esc(t)}</span>`).join("")||"아직 없어요";$("cnt").textContent=fb.length;$("messages").innerHTML=fb.slice().reverse().map(x=>`<div class="message"><b>${esc(x.name||"익명")}</b><p>${(x.traits||[]).map(esc).join(", ")}</p>${esc(x.message||"")}</div>`).join("")||"아직 피드백이 없어요";$("reflection").textContent=bl.length?`내가 선택하지 않았던 특성이 ${bl.length}개 발견되었습니다. 피드백은 자기이해의 단서가 될 수 있지만, 여러 의견과 자신의 경험을 함께 살펴보세요.`:"피드백이 쌓이면 새로운 특성을 발견할 수 있습니다."}
+async function friendPage(id){try{let s=await db.collection("rooms").doc(id).get();if(!s.exists)return alert("방이 없습니다.");show("friendPage");$("friendTitle").textContent=s.data().owner+"님에게 피드백";choices("friendChoices")}catch(e){alert("방을 불러오지 못했습니다.")}}
+async function sendFeedback(){let tr=selected("friendChoices"),msg=$("feedback").value.trim(),name=$("friendName").value.trim();if(!tr.length&&!msg)return alert("특성을 고르거나 메시지를 입력하세요.");try{let r=db.collection("rooms").doc(qs.get("respond")),s=await r.get();if(!s.exists)return alert("방이 없습니다.");let fb=s.data().feedback||[];if(fb.length>=100)return alert("응답 한도에 도달했습니다.");await r.update({feedback:[...fb,{traits:tr,message:msg,name:name||"익명",time:Date.now()}]});show("done")}catch(e){alert("피드백을 보내지 못했습니다. Firestore 규칙을 확인하세요.")}}
+async function copyLink(){try{await navigator.clipboard.writeText($("ownerLink").value);toast("링크를 복사했습니다.")}catch(e){$("ownerLink").select();document.execCommand("copy")}}
+async function submitSurvey(){let a={};for(let q of Q){let v=document.querySelector(`input[name="${q[0]}"]:checked`);if(!v)return alert("모든 문항에 응답하세요.");a[q[0]]=Number(v.value)}try{await db.collection("surveyResponses").add({answers:a,isTest:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()});toast("설문을 제출했습니다.");show("home")}catch(e){alert("제출하지 못했습니다. Firestore 규칙을 확인하세요.")}}
+async function adminLogin(){try{let e=$("email").value.trim();if(e.toLowerCase()!==ADMIN_EMAIL.toLowerCase())return alert("관리자 이메일이 등록된 주소와 다릅니다.");await auth.signInWithEmailAndPassword(e,$("password").value);if(!admin()){await auth.signOut();return alert("관리자 권한이 없습니다.")}await loadStats()}catch(e){alert("로그인 실패. Firebase Authentication 이메일/비밀번호 설정을 확인하세요.")}}
+auth.onAuthStateChanged(u=>{if(u&&admin()&&!$("admin").classList.contains("hidden"))loadStats();else if(!u){$("panel").classList.add("hidden");$("login").classList.remove("hidden")}})
+async function loadStats(){if(!admin())return;$("login").classList.add("hidden");$("panel").classList.remove("hidden");$("who").textContent=auth.currentUser.email;try{let s=await db.collection("surveyResponses").get(),all=s.docs.map(d=>d.data()),real=all.filter(x=>x.isTest===false),tests=all.filter(x=>x.isTest===true);$("realCount").textContent=real.length;$("testCount").textContent=tests.length;let out="";for(let q of Q){out+=`<div class="card"><h3>${q[1]}</h3>`;for(let n=1;n<=5;n++){let c=real.filter(x=>Number(x.answers?.[q[0]])===n).length,p=real.length?Math.round(c/real.length*100):0;out+=`<p>${n}. ${S[n-1]} — ${c}명 (${p}%)</p><div class="bar"><span style="width:${p}%"></span></div>`}out+="</div>"}$("stats").innerHTML=out}catch(e){$("stats").innerHTML='<p class="notice">통계를 불러오지 못했습니다. 규칙을 확인하세요.</p>'}}
+async function addTests(){if(!admin())return;try{let b=db.batch(),n=Number($("amount").value);for(let i=0;i<n;i++){let a={};Q.forEach(q=>a[q[0]]=1+Math.floor(Math.random()*5));b.set(db.collection("surveyResponses").doc(),{answers:a,isTest:true,createdAt:firebase.firestore.FieldValue.serverTimestamp()})}await b.commit();await loadStats();toast("테스트 응답을 추가했습니다.")}catch(e){alert("테스트 응답을 추가하지 못했습니다. 규칙을 확인하세요.")}}
+async function resetTests(){if(!admin())return;if(!confirm("테스트 응답만 삭제합니다. 실제 응답은 유지됩니다. 계속할까요?"))return;if(prompt('확인을 위해 "테스트 초기화" 입력')!=="테스트 초기화")return alert("취소했습니다.");try{let n=0;while(true){let s=await db.collection("surveyResponses").where("isTest","==",true).limit(400).get();if(s.empty)break;let b=db.batch();s.docs.forEach(d=>b.delete(d.ref));await b.commit();n+=s.size}await loadStats();alert(`테스트 응답 ${n}개를 삭제했습니다. 실제 응답은 유지됩니다.`)}catch(e){alert("초기화에 실패했습니다. 관리자 권한과 규칙을 확인하세요.")}}
+async function logout(){await auth.signOut();$("password").value="";toast("로그아웃했습니다.")}
+window.show=show;window.createRoom=createRoom;window.saveSelf=saveSelf;window.sendFeedback=sendFeedback;window.copyLink=copyLink;window.submitSurvey=submitSurvey;window.adminLogin=adminLogin;window.addTests=addTests;window.resetTests=resetTests;window.logout=logout;
+if(qs.get("room"))ownerPage(qs.get("room"));else if(qs.get("respond"))friendPage(qs.get("respond"));
+</script></body></html>"""
 
-async function createRoom(){
-  try{
-    const owner=$("owner").value.trim();
-    if(!owner){alert("이름 또는 별명을 입력해 주세요.");return}
-    const room=Math.random().toString(36).slice(2,10);
-    await db.collection("rooms").doc(room).set({owner,self:[],createdAt:Date.now(),feedback:[]});
-    location.href=location.pathname+"?room="+room;
-  }catch(e){console.error(e);alert("창을 만들지 못했어요. Firebase 설정이나 Firestore 규칙을 확인해 주세요.");}
-}
-async function ownerPage(room){
-  try{
-    const snap=await db.collection("rooms").doc(room).get();
-    if(!snap.exists){alert("존재하지 않는 방입니다.");return}
-    $("start").classList.add("hidden");$("ownerPage").classList.remove("hidden");
-    const data=snap.data();$("title").textContent=data.owner+"님의 조하리의 창";
-    $("ownerLink").value=location.origin+location.pathname+"?respond="+room;
-    choices("selfChoices",data.self||[]);
-    db.collection("rooms").doc(room).onSnapshot(s=>{if(s.exists)render(s.data())});
-  }catch(e){console.error(e);alert("방을 불러오지 못했어요. Firebase 연결을 확인해 주세요.");}
-}
-async function saveSelf(){
-  try{
-    const room=qs.get("room"),vals=selected("selfChoices");
-    await db.collection("rooms").doc(room).update({self:vals});toast("내가 보는 나를 저장했어요.");
-  }catch(e){console.error(e);alert("저장하지 못했어요. Firestore 규칙을 확인해 주세요.");}
-}
-function render(data){
-  const self=data.self||[],fb=data.feedback||[],freq={};
-  fb.forEach(x=>(x.traits||[]).forEach(t=>freq[t]=(freq[t]||0)+1));
-  const other=Object.keys(freq).sort((a,b)=>freq[b]-freq[a]);
-  const open=self.filter(t=>freq[t]),blind=other.filter(t=>!self.includes(t)),hidden=self.filter(t=>!freq[t]);
-  $("open").innerHTML=open.length?open.map(t=>`<span class="chip">${esc(t)}</span>`).join(""):"<span class=empty>아직 없어요.</span>";
-  $("blind").innerHTML=blind.length?blind.map(t=>`<span class="chip">${esc(t)}</span>`).join(""):"<span class=empty>아직 발견되지 않았어요.</span>";
-  $("hidden").innerHTML=hidden.length?hidden.map(t=>`<span class="chip">${esc(t)}</span>`).join(""):"<span class=empty>아직 없어요.</span>";
-  $("cnt").textContent=fb.length;
-  $("messages").innerHTML=fb.length?[...fb].reverse().map(x=>`<div class=message><div class=meta>${esc(x.name||"익명")}</div><div class=chips>${(x.traits||[]).map(t=>`<span class=chip>${esc(t)}</span>`).join("")}</div><div style="margin-top:7px;line-height:1.55">${esc(x.message||"")}</div></div>`).join(""):"<div class=empty>아직 피드백이 없어요.</div>";
-  $("reflection").textContent=blind.length?`친구들의 응답에서 내가 선택하지 않았던 특성이 ${blind.length}개 발견되었습니다. 이것은 타인의 관점이 자기이해를 넓히는 단서가 될 수 있음을 보여줍니다. 다만 피드백은 하나의 관점이므로 그대로 ‘진짜 나’라고 단정하기보다 여러 사람의 의견과 자신의 경험을 함께 비교하는 것이 중요합니다.`:"친구의 피드백이 쌓이면 내가 몰랐던 특성이 맹목의 창에 나타납니다.";
-}
-async function friendPage(room){
-  try{
-    const snap=await db.collection("rooms").doc(room).get();
-    if(!snap.exists){alert("존재하지 않는 방입니다.");return}
-    $("start").classList.add("hidden");$("friendPage").classList.remove("hidden");$("friendTitle").textContent=snap.data().owner+"님에게 피드백 남기기";choices("friendChoices");
-  }catch(e){console.error(e);alert("방을 불러오지 못했어요. 링크나 Firebase 설정을 확인해 주세요.");}
-}
-async function sendFeedback(){
-  try{
-    const room=qs.get("respond"),traits=selected("friendChoices"),message=$("feedback").value.trim(),name=$("friendName").value.trim();
-    if(!traits.length&&!message){alert("특성을 하나 이상 선택하거나 메시지를 작성해 주세요.");return}
-    const ref=db.collection("rooms").doc(room),snap=await ref.get(),old=snap.data().feedback||[];
-    await ref.update({feedback:[...old,{traits,message,name:name||"익명",time:Date.now()}]});
-    $("friendPage").classList.add("hidden");$("done").classList.remove("hidden");
-  }catch(e){console.error(e);alert("피드백을 보내지 못했어요. Firestore 규칙을 확인해 주세요.");}
-}
-window.createRoom=createRoom;window.saveSelf=saveSelf;window.sendFeedback=sendFeedback;
-window.copyOwnerLink=()=>navigator.clipboard.writeText($("ownerLink").value).then(()=>toast("링크를 복사했어요."));
-if(qs.get("room")) ownerPage(qs.get("room")); else if(qs.get("respond")) friendPage(qs.get("respond"));
-</script>
-</body></html>
+rules = """rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'admin@example.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    // Public link-based Johari rooms. Do not store sensitive personal data.
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['owner','self','createdAt','feedback'])
+        && request.resource.data.owner is string
+        && request.resource.data.owner.size() <= 20
+        && request.resource.data.self is list
+        && request.resource.data.feedback is list
+        && request.resource.data.feedback.size() == 0;
+      allow update: if request.resource.data.owner == resource.data.owner
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['self','feedback'])
+        && request.resource.data.self is list
+        && request.resource.data.self.size() <= 5
+        && request.resource.data.feedback is list
+        && request.resource.data.feedback.size() <= 100;
+      allow delete: if false;
+    }
+
+    // Anonymous real survey submissions; only admins can read results.
+    match /surveyResponses/{responseId} {
+      allow create: if request.resource.data.keys().hasAll(['answers','isTest','createdAt'])
+        && request.resource.data.isTest == false
+        && request.resource.data.answers is map
+        && request.resource.data.answers.keys().hasAll(['selfAwareness','feedbackComfort','otherUnderstanding','relationship','futureUse'])
+        && request.resource.data.answers.keys().hasOnly(['selfAwareness','feedbackComfort','otherUnderstanding','relationship','futureUse'])
+        && request.resource.data.answers.selfAwareness is int && request.resource.data.answers.selfAwareness >= 1 && request.resource.data.answers.selfAwareness <= 5
+        && request.resource.data.answers.feedbackComfort is int && request.resource.data.answers.feedbackComfort >= 1 && request.resource.data.answers.feedbackComfort <= 5
+        && request.resource.data.answers.otherUnderstanding is int && request.resource.data.answers.otherUnderstanding >= 1 && request.resource.data.answers.otherUnderstanding <= 5
+        && request.resource.data.answers.relationship is int && request.resource.data.answers.relationship >= 1 && request.resource.data.answers.relationship <= 5
+        && request.resource.data.answers.futureUse is int && request.resource.data.answers.futureUse >= 1 && request.resource.data.answers.futureUse <= 5;
+      allow read: if isAdmin();
+      allow update: if false;
+      allow delete: if isAdmin() && resource.data.isTest == true;
+    }
+  }
+}"""
+
+setup = """# 나를 비추는 창 — 새 코드 설치 안내
+
+## 파일
+- `index.html`: 조하리의 창, 익명 설문, 관리자 통계, 테스트 응답 추가/초기화
+- `firestore.rules`: Firestore 보안 규칙
+
+## 설치 순서
+1. Firebase Console → Authentication(인증) → Sign-in method(로그인 방법)에서 Email/Password(이메일/비밀번호)를 활성화합니다.
+2. Authentication → Users(사용자)에서 관리자 계정을 만들고 이메일 인증을 완료합니다.
+3. `index.html`의 `ADMIN_EMAIL` 값을 실제 관리자 이메일로 바꿉니다.
+4. `firestore.rules`의 `admin@example.com`도 같은 이메일로 바꿉니다.
+5. Firebase Console → Firestore Database → Rules(규칙)에 `firestore.rules` 전체 내용을 붙여넣고 게시합니다.
+6. GitHub 저장소의 기존 `index.html`을 이 파일로 교체하고 커밋합니다. `firestore.rules`를 GitHub에 올리는 것만으로 Firebase 규칙이 게시되지는 않습니다.
+7. 배포 후 실제 설문 제출 → 관리자 로그인 → 테스트 응답 추가 → 테스트 초기화 순서로 확인합니다.
+
+## 중요
+- 기존 Firebase 프로젝트 설정값은 유지했습니다.
+- 관리자 이메일은 HTML과 Firestore 규칙에서 정확히 같아야 합니다.
+- 초기화는 `surveyResponses` 컬렉션에서 `isTest == true`인 문서만 삭제합니다. 실제 설문은 `isTest == false`이므로 유지됩니다.
+- 기존의 `rooms` 데이터는 삭제하지 않습니다. 새 설문 기능은 `surveyResponses` 컬렉션을 사용하므로 기존 설문 데이터가 있다면 자동 집계되지 않습니다.
+- `rooms`는 링크 기반 공개 활동을 위해 읽기/수정이 허용됩니다. 링크를 아는 사람은 방 데이터에 접근할 수 있으므로 별명만 사용하고 민감한 정보는 입력하지 마세요.
+- 이 파일은 코드 생성 후 실제 Firebase 프로젝트에 배포하여 실시간 검증한 상태는 아닙니다. 게시 전 테스트가 필요합니다.
+"""
+
+(base/"index.html").write_text(html, encoding="utf-8")
+(base/"firestore.rules").write_text(rules, encoding="utf-8")
+(base/"설치안내.md").write_text(setup, encoding="utf-8")
+zip_path = Path("/mnt/data/나를_비추는_창_새로운_전체코드.zip")
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    for p in base.iterdir():
+        z.write(p, arcname=p.name)
+print(f"완료: {zip_path}")
+print("포함 파일: index.html, firestore.rules, 설치안내.md")
