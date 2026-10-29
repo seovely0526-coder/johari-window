@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 관리자 인증 확인
+    // 관리자 로그인 및 이메일 인증 확인
     function signedIn() {
       return request.auth != null;
     }
@@ -14,13 +14,54 @@ service cloud.firestore {
         && request.auth.token.email_verified == true;
     }
 
+    // 익명 설문 응답의 점수 데이터 검증
+    function validAnswers(a) {
+      return a is map
+
+        && a.keys().hasAll([
+          'selfAwareness',
+          'feedbackComfort',
+          'otherUnderstanding',
+          'relationship',
+          'futureUse'
+        ])
+
+        && a.keys().hasOnly([
+          'selfAwareness',
+          'feedbackComfort',
+          'otherUnderstanding',
+          'relationship',
+          'futureUse'
+        ])
+
+        && a.selfAwareness is int
+        && a.selfAwareness >= 1
+        && a.selfAwareness <= 5
+
+        && a.feedbackComfort is int
+        && a.feedbackComfort >= 1
+        && a.feedbackComfort <= 5
+
+        && a.otherUnderstanding is int
+        && a.otherUnderstanding >= 1
+        && a.otherUnderstanding <= 5
+
+        && a.relationship is int
+        && a.relationship >= 1
+        && a.relationship <= 5
+
+        && a.futureUse is int
+        && a.futureUse >= 1
+        && a.futureUse <= 5;
+    }
+
     // 조하리의 창 활동방
     match /rooms/{roomId} {
 
-      // 활동방 정보와 피드백을 읽을 수 있음
+      // 공개 링크 방식의 활동이므로 읽기를 허용
       allow read: if true;
 
-      // 활동방 생성 시 필수 필드 및 데이터 형식 확인
+      // 새로운 활동방 생성
       allow create: if
         request.resource.data.keys().hasAll([
           'owner',
@@ -28,58 +69,115 @@ service cloud.firestore {
           'createdAt',
           'feedback'
         ])
+
+        && request.resource.data.keys().hasOnly([
+          'owner',
+          'self',
+          'createdAt',
+          'feedback'
+        ])
+
         && request.resource.data.owner is string
+        && request.resource.data.owner.size() >= 1
         && request.resource.data.owner.size() <= 20
+
         && request.resource.data.self is list
-        && request.resource.data.self.size() <= 5
+        && request.resource.data.self.size() == 0
+
         && request.resource.data.createdAt is int
+
         && request.resource.data.feedback is list
         && request.resource.data.feedback.size() == 0;
 
-      // 기존 활동방의 소유자, 자기 평가, 생성 시간은 변경 불가
-      // 피드백만 추가할 수 있음
+      // 자기 특성 저장 또는 친구 피드백 추가
       allow update: if
-        request.resource.data.owner == resource.data.owner
-        && request.resource.data.self == resource.data.self
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.diff(resource.data)
-             .affectedKeys().hasOnly(['feedback'])
-        && request.resource.data.feedback is list
-        && request.resource.data.feedback.size()
-             <= resource.data.feedback.size() + 1;
 
-      // 활동방 삭제는 관리자만 가능
+        // 이름과 생성 시간은 변경 불가
+        request.resource.data.owner == resource.data.owner
+        && request.resource.data.createdAt
+             == resource.data.createdAt
+
+        && (
+
+          // 자기 특성 변경: 3~5개
+          (
+            request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['self'])
+
+            && request.resource.data.self is list
+            && request.resource.data.self.size() >= 3
+            && request.resource.data.self.size() <= 5
+          )
+
+          ||
+
+          // 피드백 추가: 한 번에 1개씩
+          (
+            request.resource.data.diff(resource.data)
+              .affectedKeys().hasOnly(['feedback'])
+
+            && request.resource.data.feedback is list
+
+            && request.resource.data.feedback.size()
+              == resource.data.feedback.size() + 1
+
+            && request.resource.data.feedback.size() <= 100
+          )
+        );
+
+      // 활동방 삭제는 관리자에게만 허용
       allow delete: if isAdmin();
     }
 
     // 익명 설문 응답
     match /surveyResponses/{responseId} {
 
-      // 설문 응답 제출
+      // 설문 생성 시 데이터 구조와 서버 시간을 검증
       allow create: if
+
         request.resource.data.keys().hasAll([
           'answers',
-          'createdAt',
-          'isTest'
+          'isTest',
+          'createdAt'
         ])
-        && request.resource.data.answers is list
-        && request.resource.data.answers.size() == 5
-        && request.resource.data.createdAt is int
-        && request.resource.data.isTest is bool;
 
-      // 응답 통계 조회는 관리자만 가능
+        && request.resource.data.keys().hasOnly([
+          'answers',
+          'isTest',
+          'createdAt'
+        ])
+
+        && validAnswers(request.resource.data.answers)
+
+        && request.resource.data.createdAt == request.time
+
+        && (
+
+          // 일반 사용자의 실제 익명 설문
+          request.resource.data.isTest == false
+
+          ||
+
+          // 테스트 설문은 관리자만 생성 가능
+          (
+            isAdmin()
+            && request.resource.data.isTest == true
+          )
+        );
+
+      // 설문 결과 조회는 관리자만 가능
       allow read: if isAdmin();
 
-      // 응답 수정은 허용하지 않음
+      // 설문 응답 수정은 허용하지 않음
       allow update: if false;
 
-      // 테스트 응답 삭제는 관리자만 가능
-      // 실제 응답은 삭제하지 않음
-      allow delete: if isAdmin()
+      // 테스트로 표시된 응답만 관리자가 삭제 가능
+      allow delete: if
+        isAdmin()
         && resource.data.isTest == true;
     }
 
-    // 그 외 모든 데이터 접근 차단
+    // 위에서 별도로 허용하지 않은 데이터 접근은 차단
     match /{document=**} {
       allow read, write: if false;
     }
