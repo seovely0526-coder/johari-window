@@ -22,7 +22,7 @@ html = """<!doctype html>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 const firebaseConfig={apiKey:"AIzaSyCOz7ZQuZFiWFSVi1CpshlisX8mPwxge0M",authDomain:"johari-window-793d6.firebaseapp.com",projectId:"johari-window-793d6",storageBucket:"johari-window-793d6.firebasestorage.app",messagingSenderId:"1048946872988",appId:"1:1048946872988:web:e7a5d5e310badc3db21359",measurementId:"G-VS2EKLEVTW"};
-const ADMIN_EMAIL="admin@example.com"; // 실제 관리자 이메일로 변경하고 firestore.rules와 일치시킬 것
+const ADMIN_EMAIL="seovely0526@gmail.com"; // 실제 관리자 이메일로 변경하고 firestore.rules와 일치시킬 것
 firebase.initializeApp(firebaseConfig);const auth=firebase.auth(),db=firebase.firestore(),$=id=>document.getElementById(id),qs=new URLSearchParams(location.search);
 const TRAITS=["경청하는","책임감 있는","배려하는","성실한","침착한","창의적인","협력적인","유머 감각이 있는","도전적인","공감하는","리더십이 있는","꼼꼼한","긍정적인","솔직한","인내심 있는","문제 해결을 잘하는"];
 const Q=[["selfAwareness","타인의 피드백이 나를 이해하는 데 도움이 되었나요?"],["feedbackComfort","친구의 피드백을 받는 것이 편안했나요?"],["otherUnderstanding","다른 사람의 관점을 이해하는 데 도움이 되었나요?"],["relationship","자기이해와 타인이해가 대인관계에 도움이 된다고 생각하나요?"],["futureUse","앞으로도 존중하는 피드백을 활용하고 싶나요?"]],S=["전혀 그렇지 않다","그렇지 않은 편이다","보통이다","그런 편이다","매우 그렇다"];
